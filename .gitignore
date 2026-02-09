@@ -1,0 +1,6 @@
+.venv/ 
+__pycache__/ 
+*.png 
+*.zip 
+figure_digitized_csvs/ 
+*.csv 
