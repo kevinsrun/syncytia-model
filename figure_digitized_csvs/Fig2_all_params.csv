@@ -1,0 +1,12 @@
+group,curve,param,value
+shared,,gamma,1.7683105047642007
+shared,,k,0.5309224666996204
+shared,,delta,0.6484279527527604
+shared,,rA,0.7354800365714701
+shared,,K,129.11529395499068
+shared,,gamma2,0.2640298996613102
+curve,Fig2_mock_grey.csv,scale,0.44931696191192305
+curve,Fig2_mock_grey.csv,offset,0.36129377115096434
+curve,Fig2_spike_blue.csv,scale,0.6608084690679487
+curve,Fig2_spike_blue.csv,offset,-0.3846974394621607
+fit,,SSR,7871.120995113676

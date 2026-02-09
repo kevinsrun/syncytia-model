@@ -1,0 +1,14 @@
+group,curve,param,value
+shared,,gamma,0.00988067611790822
+shared,,k,0.4999928915010601
+shared,,delta,0.018028448190561784
+shared,,rA,0.0
+shared,,K,18.00221606012187
+shared,,gamma2,0.00020536023978679846
+curve,Fig3A_combined.csv,scale,1.1965310573826988
+curve,Fig3A_combined.csv,offset,-7.035910649259527
+curve,Fig3A_hue120.csv,scale,1.1965310573826988
+curve,Fig3A_hue120.csv,offset,-7.035910649259527
+curve,Fig3A_hue60.csv,scale,1.5313885399941167
+curve,Fig3A_hue60.csv,offset,-10.144046329088225
+fit,,SSR,1054.7558003975032
