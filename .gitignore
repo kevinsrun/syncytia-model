@@ -1,4 +1,7 @@
-.venv/ 
-__pycache__/ 
-*.png 
-*.zip 
+.venv/
+__pycache__/
+*.pyc
+
+predictions.csv
+csv/*_combined.csv
+csv/pred_*.csv
