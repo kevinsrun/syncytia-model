@@ -1,331 +1,456 @@
-print("SCRIPT STARTED")
-
-from tabnanny import check
 import numpy as np
 import scipy
 import csv
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy.integrate import odeint
-import argparse
-import os
-import glob
-import re
-import math
 
-#Differential Equations. Erlang Two-Step Fusion 
-def ode_list(li,t,gamma,k_val):
+file = open(r'Fig.csvs\Fig2_mock_TF.csv')
+type(file)
+csvreader = csv.reader(file)
+header_Fig2_mock_TF = []
+header_Fig2_mock_TF = next(csvreader)
+rows_Fig2_mock_TF = []
+for row in csvreader:
+    rows_Fig2_mock_TF.append(row)
+file.close
+
+mock = np.array(rows_Fig2_mock_TF)
+mock_flt = mock.astype(float)
+arr_sorted_mock = sorted(mock_flt,key = lambda x: x[0])
+arr_mock_new = np.array(arr_sorted_mock)
+tr_arr_mock_new = np.transpose(arr_mock_new)
+sublist1_mock, sublist2_mock = tr_arr_mock_new.tolist()
+key = sublist2_mock[0]
+for i in range(0,21):
+    sublist2_mock[i] = sublist2_mock[i] - key
+sublist2_mock[0] = 0.0
+final_mock = np.array(list(zip(sublist1_mock, sublist2_mock)))
+#Normalize the cell index values to be between 0 and 1 by finding largest value in the cell index column and dividing all values by that number
+final_mock[:,1] = final_mock[:,1] / np.max(final_mock[:,1])
+
+file = open(r'Fig.csvs\Fig2A_spike-TF.csv')
+type(file)
+csvreader = csv.reader(file)
+header_Fig2A_spike_TF = []
+header_Fig2A_spike_TF = next(csvreader)
+rows_Fig2A_spike_TF = []
+for row in csvreader:
+    rows_Fig2A_spike_TF.append(row)
+file.close
+
+spike = np.array(rows_Fig2A_spike_TF)
+spike_flt = spike.astype(float)
+arr_sorted_spike = sorted(spike_flt,key = lambda x: x[0])
+arr_spike_new = np.array(arr_sorted_spike)
+tr_arr_spike_new = np.transpose(arr_spike_new)
+sublist1_spike, sublist2_spike = tr_arr_spike_new.tolist()
+key = sublist2_spike[0]
+for i in range(0,21):
+    sublist2_spike[i] = sublist2_spike[i] - key
+sublist2_spike[0] = 0.0
+final_spike = np.array(list(zip(sublist1_spike, sublist2_spike)))
+#Normalize the cell index values to be between 0 and 1 by finding largest value in the cell index column and dividing all values by that number
+final_spike[:,1] = final_spike[:,1] / np.max(final_spike[:,1])
+
+arr_mock_new = np.array(arr_sorted_mock)
+
+_, unique_idx = np.unique(arr_mock_new[:,0], return_index=True)
+arr_mock_new = arr_mock_new[np.sort(unique_idx)]
+
+def ode_list(li,t,gamma,k_val,sigma):
     D = li[0]
     A = li[1]
     F1 = li[2]
     F2 = li[3]
     S = li[4]
-
-    dDdt = (-gamma*D*A)
-    dAdt = (-gamma*D*A) - (gamma*S*A)
-    dF1dt = (2*gamma*D*A)+(gamma*S*A)-(k_val*F1)
-    dF2dt = (k_val*F1)-(k_val*F2)
-    dSdt = (k_val*F2)
-
+   
+    dDdt = (-gamma*D*A) - sigma*D
+    dAdt = (-gamma*D*A) - (gamma*S*A) - sigma*A
+    dF1dt = (2*gamma*D*A)+(gamma*S*A)-(k_val*F1) - sigma*F1
+    dF2dt = (k_val*F1)-(k_val*F2) - sigma*F2
+    dSdt = (k_val*F2) - sigma*S
+   
     return [dDdt, dAdt, dF1dt, dF2dt, dSdt]
 
-#Taking optimize values and getting y values 
-def true_y_values(li, t_vals):
-    donor_y = li.x[0]
-    gamma_y = li.x[1]
-    k_val_y = li.x[2]
+def SSR_code_mock(li):
+    t = final_mock[:, 0]
+   
+    donor_SSR_mock = li[0]
+    gamma_SSR_mock = li[1]
+    k_val_SSR_mock = li[2]
+    sigma_SSR_mock = li[3]
+   
+    var = [donor_SSR_mock, 1-donor_SSR_mock, 0, 0, 0]
+    check = final_mock[:,1]
 
-    true_vals = odeint(ode_list,[donor_y, 1-donor_y, 0, 0, 0], t_vals, args = (gamma_y, k_val_y), mxstep=5000)
-    y_vals = true_vals[:,4] / (true_vals[:,0] + true_vals[:,1] + true_vals[:,2] + true_vals[:,3])
-    return y_vals
+    if sigma_SSR_mock < 0:
+        return 1e12
 
-#Chi Squared
+    return_values_mock = odeint(ode_list, var, t, args = (gamma_SSR_mock, k_val_SSR_mock, sigma_SSR_mock))
+    y_predicted_val_mock = return_values_mock[:,4]/(return_values_mock[:,0] + return_values_mock[:,1] + return_values_mock[:,2] + return_values_mock[:,3])
+    SSR_mock = sum((y_predicted_val_mock - check)**2)
+    return SSR_mock
+
+def SSR_code_spike(li):
+    t = final_spike[:, 0]
+   
+    donor_SSR_spike = li[0]
+    gamma_SSR_spike = li[1]
+    k_val_SSR_spike = li[2]
+    sigma_SSR_spike = li[3]
+   
+    var = [donor_SSR_spike, 1-donor_SSR_spike, 0.1, 0, 0]
+    check = final_spike[:,1]
+   
+   #No negatives plz or absurbly high values
+    if donor_SSR_spike <= 0 or donor_SSR_spike >= 1:
+        return 1e12
+
+    if sigma_SSR_spike < 0:
+        return 1e12
+
+    return_values_spike = odeint(ode_list, var, t, args = (gamma_SSR_spike, k_val_SSR_spike, sigma_SSR_spike))
+    y_predicted_val_spike = return_values_spike[:,4]/(return_values_spike[:,0] + return_values_spike[:,1] + return_values_spike[:,2] + return_values_spike[:,3])
+    SSR_spike = sum((y_predicted_val_spike - check)**2)
+    return SSR_spike
+
+def true_y_values_mock(li):
+    donor_y_mock = li.x[0]
+    gamma_y_mock = li.x[1]
+    k_val_y_mock = li.x[2]
+    sigma_y_mock = li.x[3]
+   
+    t_mock = final_mock[:,0]
+   
+    true_vals_mock = odeint(ode_list,[donor_y_mock, 1-donor_y_mock, 0, 0, 0], t_mock, args = (gamma_y_mock, k_val_y_mock, sigma_y_mock))
+    y_vals_mock = true_vals_mock[:,4] / (true_vals_mock[:,0] + true_vals_mock[:,1] + true_vals_mock[:,2] + true_vals_mock[:,3])
+    return y_vals_mock
+
+def true_y_values_spike(li):
+    donor_y_spike = li.x[0]
+    gamma_y_spike = li.x[1]
+    k_val_y_spike = li.x[2]
+    sigma_y_spike = li.x[3]
+   
+    t_spike = final_spike[:,0]
+   
+    true_vals_spike = odeint(ode_list,[donor_y_spike, 1-donor_y_spike, 0, 0, 0], t_spike, args = (gamma_y_spike, k_val_y_spike, sigma_y_spike))
+    y_vals_spike = true_vals_spike[:,4] / (true_vals_spike[:,0] + true_vals_spike[:,1] + true_vals_spike[:,2] + true_vals_spike[:,3])
+    return y_vals_spike
+
 def chi_squared(li_1,li_2):
     chi = sum((li_1 - li_2)**2/li_1)
     return chi
 
-#Akaike's Information Criterion
-def aic(li, SSR, m):
-    n = len(li)
-    sigma2 = SSR / max(n, 1)
-    return 2*m + n*(1.0 + np.log(2*np.pi*sigma2))
+def aic(li):
+    SSR = opti_mock.fun
+    return len(li)*np.log(SSR/len(li))+2*4
 
-def read_csv_two_cols(path):
-    file = open(path, newline='')
-    csvreader = csv.reader(file)
-    header = next(csvreader, None)
-    rows = []
-    for row in csvreader:
-        if row is None or len(row) < 2:
-            continue
-        try:
-            rows.append([float(row[0]), float(row[1])])
-        except:
-            continue
-    file.close()
-    arr = np.array(rows, dtype=float)
-    return arr, header
+parameter_bounds = [(0.001, 0.999), (1e-8, 500.0), (1e-8, 500.0), (0.0, 10.0)]
 
-def preprocess(arr, max_time=None, baseline=True, normalize=True, invert=False):
-    arr_sorted = sorted(arr, key = lambda x: x[0])
-    arr2 = np.array(arr_sorted, dtype=float)
+initial_guess_mock = [0.74035, 199.3162, 0.10981, 0.30664]
+opti_mock = scipy.optimize.minimize(SSR_code_mock, initial_guess_mock, method='Nelder-Mead', bounds=parameter_bounds, options={'maxiter':2000, 'xatol':1e-3, 'fatol':1e-3})
+print(opti_mock)
 
-    if max_time is not None:
-        cut = (arr2[:,0] <= float(max_time))
-        arr2 = arr2[np.where(cut)[0]]
+initial_guess_spike = [0.42857, 0.26210, 0.19921, 0.23228]
+opti_spike = scipy.optimize.minimize(SSR_code_spike, initial_guess_spike, method='Nelder-Mead', bounds=parameter_bounds, options={'maxiter':2000, 'xatol':1e-3, 'fatol':1e-3})
+print(opti_spike)
 
-    if baseline and len(arr2) > 0:
-        key = arr2[0,1]
-        arr2[:,1] = arr2[:,1] - key
-        arr2[0,1] = 0.0
+gamma_mock = opti_mock.x[1]
+k_val_mock = opti_mock.x[2]
+observed_mock = true_y_values_mock(opti_mock)
 
-    if normalize and len(arr2) > 0:
-        y = arr2[:,1]
-        y_min = np.min(y)
-        y_max = np.max(y)
-        rng = y_max - y_min
-        if rng > 0:
-            arr2[:,1] = (y - y_min) / rng
+gamma_spike = opti_spike.x[1]
+k_val_spike = opti_spike.x[2]
+sigma_spike = opti_spike.x[3]
+observed_spike = true_y_values_spike(opti_spike)
 
+plt.scatter(final_mock[:,0], final_mock[:,1])
+plt.plot(final_mock[:,0], observed_mock)
 
-    if invert and len(arr2) > 0:
-        arr2[:,1] = 1.0 - arr2[:,1]
+plt.scatter(final_spike[:,0], final_spike[:,1])
+plt.plot(final_spike[:,0], observed_spike)
 
-    return arr2
+plt.xlabel("Time (hr)", fontsize=10)
+plt.ylabel("Cell Index (CI)", fontsize=10)
+plt.title("Mock Vs. Spike", fontsize=10)
 
-def fit_one(final_arr):
-    t_vals = final_arr[:,0]
-    check = final_arr[:,1]
+plt.show()
 
-    #Getting SSR values from integration
-    def SSR_code(li):
-        donor_SSR = li[0]
-        gamma_SSR = li[1]
-        k_val_SSR = li[2]
-        if donor_SSR <= 0 or donor_SSR >= 1:
-            return 1e18
-        if gamma_SSR <= 0 or k_val_SSR <= 0:
-            return 1e18
+print('chi^2', chi_squared(final_mock[:,1][1:], observed_mock[1:]))
+print('aic', aic(final_mock[:,1]))
 
-        var = [donor_SSR, 1-donor_SSR, 0, 0, 0]
-        return_values = odeint(ode_list,var, t_vals, args = (gamma_SSR, k_val_SSR), mxstep=5000) 
-        y_predicted_val = return_values[:,4]/(return_values[:,0]+return_values[:,1]+return_values[:,2]+return_values[:,3])
-        p = np.mean((check - y_predicted_val)**2)
-        return p
+# %% FIGURE 3A
 
-    ##### MAIN CODE #####
-    initial_guess = [0.5, 0.001, 0.02]
-    opti = scipy.optimize.minimize(SSR_code, initial_guess, method = 'Nelder-Mead', options={'maxiter':5000})
-    observed = true_y_values(opti, t_vals)
+# Fig3A_1_1
+file = open(r'Fig.csvs\Fig3A_1_1.csv')
+type(file)
+csvreader = csv.reader(file)
+header_Fig3A_1_1 = next(csvreader)
+rows_Fig3A_1_1 = []
+for row in csvreader:
+    rows_Fig3A_1_1.append(row)
+file.close
 
-    SSR = float(opti.fun) * len(check)
-    n = len(check)
-    m = 3
-    sigma = float(np.sqrt(SSR/max(n-m,1)))
+fig3A_1_1 = np.array(rows_Fig3A_1_1)
+fig3A_1_1_flt = fig3A_1_1.astype(float)
+arr_sorted_fig3A_1_1 = sorted(fig3A_1_1_flt, key=lambda x: x[0])
+arr_fig3A_1_1_new = np.array(arr_sorted_fig3A_1_1)
 
-    check_chi = check.copy()
-    if n > 3:
-        check_chi[0] = 0.0001
-        check_chi[1] = 0.0001
-        check_chi[2] = 0.0001
-        check_chi[3] = 0.0001
+tr_arr_fig3A_1_1_new = np.transpose(arr_fig3A_1_1_new)
+time_fig3A_1_1, ci_fig3A_1_1 = tr_arr_fig3A_1_1_new.tolist()
 
-    den = max(sigma**2, 1e-12)
-    chi2 = float(SSR / den)
-    m = 3
-    AIC = float(aic(check, SSR, m))
+key = ci_fig3A_1_1[0]
+for i in range(len(ci_fig3A_1_1)):
+    ci_fig3A_1_1[i] -= key
+ci_fig3A_1_1[0] = 0.0
+
+final_fig3A_1_1 = np.array(list(zip(time_fig3A_1_1, ci_fig3A_1_1)))
+final_fig3A_1_1[:,1] = final_fig3A_1_1[:,1] / np.max(final_fig3A_1_1[:,1])
 
 
-    return opti, observed, SSR, sigma, chi2, AIC
+#Fig3A_1_2
+file = open(r'Fig.csvs\Fig3A_1_2.csv')
+type(file)
+csvreader = csv.reader(file)
+header_Fig3A_1_2 = next(csvreader)
+rows_Fig3A_1_2 = []
+for row in csvreader:
+    rows_Fig3A_1_2.append(row)
+file.close
 
-def plot_and_save(final_arr, observed, out_png, title):
-    plt.figure(figsize=(6,4))
-    plt.scatter(final_arr[:,0], final_arr[:,1])
-    plt.plot(final_arr[:,0], observed)
-    plt.xlabel("Time(hr)", fontsize=10)
-    plt.ylabel("Cell Index", fontsize=10)
-    plt.title(title, fontsize=10)
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=200)
-    plt.close()
+fig3A_1_2 = np.array(rows_Fig3A_1_2)
+fig3A_1_2_flt = fig3A_1_2.astype(float)
+arr_sorted_fig3A_1_2 = sorted(fig3A_1_2_flt, key=lambda x: x[0])
+arr_fig3A_1_2_new = np.array(arr_sorted_fig3A_1_2)
 
-def write_params(out_csv, opti, SSR, sigma, chi2, AIC):
-    with open(out_csv, 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(["p","gamma","k_val","SSR","sigma","chi^2","AIC"])
-        w.writerow([opti.x[0], opti.x[1], opti.x[2], SSR, sigma, chi2, AIC])
+tr_arr_fig3A_1_2_new = np.transpose(arr_fig3A_1_2_new)
+time_fig3A_1_2, ci_fig3A_1_2 = tr_arr_fig3A_1_2_new.tolist()
 
+key = ci_fig3A_1_2[0]
+for i in range(len(ci_fig3A_1_2)):
+    ci_fig3A_1_2[i] -= key
+ci_fig3A_1_2[0] = 0.0
 
-def panel_name_from_file(path):
-    base = os.path.splitext(os.path.basename(path))[0]
+final_fig3A_1_2 = np.array(list(zip(time_fig3A_1_2, ci_fig3A_1_2)))
+final_fig3A_1_2[:,1] = final_fig3A_1_2[:,1] / np.max(final_fig3A_1_2[:,1])
 
-    if base.startswith("FigB_"):
-        return None
+#Fig3A_2_1
+file = open(r'Fig.csvs\Fig3A_2_1.csv')
+type(file)
+csvreader = csv.reader(file)
+header_Fig3A_2_1 = next(csvreader)
+rows_Fig3A_2_1 = []
+for row in csvreader:
+    rows_Fig3A_2_1.append(row)
+file.close
 
-    if base.startswith("Fig2_mock"):
-        return "Fig 2A"
-    
-    if base.lower().startswith("fig2_mock"):
-        key = "Fig 2A"
+fig3A_2_1 = np.array(rows_Fig3A_2_1)
+fig3A_2_1_flt = fig3A_2_1.astype(float)
+arr_sorted_fig3A_2_1 = sorted(fig3A_2_1_flt, key=lambda x: x[0])
+arr_fig3A_2_1_new = np.array(arr_sorted_fig3A_2_1)
 
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if m:
-        key = m.group(1)
-        return f"{key[:3]} {key[3:]}"  # "Fig 4C"
+tr_arr_fig3A_2_1_new = np.transpose(arr_fig3A_2_1_new)
+time_fig3A_2_1, ci_fig3A_2_1 = tr_arr_fig3A_2_1_new.tolist()
 
-    return None
+key = ci_fig3A_2_1[0]
+for i in range(len(ci_fig3A_2_1)):
+    ci_fig3A_2_1[i] -= key
+ci_fig3A_2_1[0] = 0.0
 
+final_fig3A_2_1 = np.array(list(zip(time_fig3A_2_1, ci_fig3A_2_1)))
+final_fig3A_2_1[:,1] = final_fig3A_2_1[:,1] / np.max(final_fig3A_2_1[:,1])
 
-def auto_segment_and_invert(final_arr):
-    t = final_arr[:,0]
-    y = final_arr[:,1]
+def true_y_values_fig3A_1_1(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
 
-    if len(y) < 5:
-        return final_arr, False
+    t = final_fig3A_1_1[:,0]
 
-    # detect U-shape-ish: minimum is not at ends
-    i_min = int(np.argmin(y))
-    u_shape = (2 <= i_min <= len(y)-3)
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
 
-    if u_shape:
-        # keep the increasing leg after the minimum
-        t2 = t[i_min:]
-        y2 = y[i_min:]
+def true_y_values_fig3A_1_2(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
 
-        # rebase like preprocess does: start at 0
-        t2 = t2 - t2[0]
-        y2 = y2 - y2[0]
-        mx = np.max(y2) if len(y2) else 1.0
-        if mx > 0:
-            y2 = y2 / mx
+    t = final_fig3A_1_2[:,0]
 
-        seg = np.column_stack([t2, y2])
-    else:
-        seg = final_arr.copy()
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
 
-    # choose invert so segment trends upward overall
-    yseg = seg[:,1]
-    invert = (yseg[-1] < yseg[0])
-    return seg, invert
+def true_y_values_fig3A_2_1(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
 
+    t = final_fig3A_2_1[:,0]
 
-def fig_sort_key(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return (10**9, "Z", base)
-    num = int(m.group(2))
-    letter = m.group(3).upper()
-    rest = (m.group(4) or "").lower()
-    return (num, letter, rest)
-def fig_panel_key(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return base
-    return f"{m.group(1)} {int(m.group(2))}{m.group(3).upper()}"  # e.g. "Fig 3A"
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
 
-def fig_condition_label(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return base
-    rest = m.group(4) or ""
-    if not rest:
-        return "trace"
-    return rest.replace("_", " ")
+def SSR_code_fig3A_1_1(li):
+    t = final_fig3A_1_1[:, 0]
 
+    donor = li[0]
+    gamma = li[1]
+    k_val = li[2]
+    sigma = li[3]
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", default="christmas")
-    ap.add_argument("--data", nargs="+", required=True)
-    ap.add_argument("--max_time", type=float, default=None)
-    ap.add_argument("--no_baseline", action="store_true")
-    ap.add_argument("--no_normalize", action="store_true")
-    ap.add_argument("--invert", action="store_true")
-    args = ap.parse_args()
+    var = [donor, 1-donor, 0, 0, 0]
+    check = final_fig3A_1_1[:,1]
 
-    if args.mode.lower() != "christmas":
-        raise SystemExit("Only --mode christmas is supported in this strict script.")
+    if donor <= 0 or donor >= 1:
+        return 1e12
+    if sigma < 0:
+        return 1e12
 
-    paths = []
-    for p in args.data:
-        expanded = glob.glob(p)
-        if expanded:
-            paths.extend(expanded)
-        else:
-            paths.append(p)
+    return_vals = odeint(ode_list, var, t, args=(gamma, k_val, sigma))
+    y_pred = return_vals[:,4] / (return_vals[:,0] + return_vals[:,1] + return_vals[:,2] + return_vals[:,3])
 
-    paths = sorted(paths)
-    print("FILES FOUND:", len(paths))
-    if not paths:
-        raise SystemExit("No CSV files matched your --data pattern.")
+    return sum((y_pred - check)**2)
 
-    # group paths by panel like "Fig 3A", "Fig 3B", ...
-    groups = {}
+def SSR_code_fig3A_1_2(li):
+    t = final_fig3A_1_2[:, 0]
 
-    for path in paths:
-        base = os.path.splitext(os.path.basename(path))[0].strip()
+    donor = li[0]
+    gamma = li[1]
+    k_val = li[2]
+    sigma = li[3]
 
-        # skip malformed duplicate
-        if base.lower().startswith("figb_"):
-            continue
+    var = [donor, 1-donor, 0, 0, 0]
+    check = final_fig3A_1_2[:,1]
 
-        # force mock into Fig 2A
-        if base.lower().startswith("fig2_mock"):
-            key = "Fig 2A"
-        else:
-            m = re.match(r"^(fig\d+[a-z])", base, re.IGNORECASE)
-            if not m:
-                continue
-            raw = m.group(1)              # e.g. fig4c
-            key = f"Fig {raw[3:-1]}{raw[-1].upper()}"  # "Fig 4C"
+    if donor <= 0 or donor >= 1:
+        return 1e12
+    if sigma < 0:
+        return 1e12
 
-        groups.setdefault(key, []).append(path)
+    return_vals = odeint(ode_list, var, t, args=(gamma, k_val, sigma))
+    y_pred = return_vals[:,4] / (return_vals[:,0] + return_vals[:,1] + return_vals[:,2] + return_vals[:,3])
 
+    return sum((y_pred - check)**2)
 
+def SSR_code_fig3A_2_1(li):
+    t = final_fig3A_2_1[:, 0]
 
-    # run each group -> one combined plot per panel
-    for panel_key in sorted(groups.keys()):
+    donor = li[0]
+    gamma = li[1]
+    k_val = li[2]
+    sigma = li[3]
 
-        plt.figure(figsize=(7,4))
-        print("\n====", panel_key, "====")
+    var = [donor, 1-donor, 0, 0, 0]
+    check = final_fig3A_2_1[:,1]
 
-        for path in groups[panel_key]:
+    if donor <= 0 or donor >= 1:
+        return 1e12
+    if sigma < 0:
+        return 1e12
 
-            arr, header = read_csv_two_cols(path)
+    return_vals = odeint(ode_list, var, t, args=(gamma, k_val, sigma))
+    y_pred = return_vals[:,4] / (return_vals[:,0] + return_vals[:,1] + return_vals[:,2] + return_vals[:,3])
 
-            final_arr = preprocess(
-                arr,
-                max_time=args.max_time,
-                baseline=(not args.no_baseline),
-                normalize=(not args.no_normalize),
-                invert=args.invert
-            )
+    return sum((y_pred - check)**2)
 
-            opti, observed, SSR, sigma, chi2, AIC = fit_one(final_arr)
+def true_y_values_fig3A_1_1(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
 
-            print(os.path.basename(path))
-            print("fun", opti.fun)
-            print("sigma", sigma)
-            print("chi^2", chi2)
-            print("AIC", AIC)
+    t = final_fig3A_1_1[:,0]
 
-            label = os.path.splitext(os.path.basename(path))[0].split("_",1)[1]
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
 
-            plt.scatter(final_arr[:,0], final_arr[:,1], s=14, alpha=0.7, label=label)
-            plt.plot(final_arr[:,0], observed, linewidth=2)
+def true_y_values_fig3A_1_2(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
 
-        plt.xlabel("Time(hr)")
-        plt.ylabel("Cell Index")
-        plt.ylim(-1, 2)
-        plt.title(panel_key)
-        plt.legend(fontsize=8)
-        plt.tight_layout()
-        plt.savefig(panel_key.replace(" ","") + ".png", dpi=200)
-        plt.close()
+    t = final_fig3A_1_2[:,0]
+
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
+
+def true_y_values_fig3A_2_1(li):
+    donor = li.x[0]
+    gamma = li.x[1]
+    k_val = li.x[2]
+    sigma = li.x[3]
+
+    t = final_fig3A_2_1[:,0]
+
+    vals = odeint(ode_list, [donor, 1-donor, 0, 0, 0], t, args=(gamma, k_val, sigma))
+    return vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
+
+def chi_squared(li_1,li_2):
+    chi = sum((li_1 - li_2)**2/li_1)
+    return chi
+
+def aic(li):
+    SSR = opti_fig3A_1_1.fun
+    return len(li)*np.log(SSR/len(li))+2*4
 
 
-if __name__ == "__main__":
-        main()
+initial_guess_fig3A_1_1 = [0.89833, 105.6878, 11.79493, 4.28405]
+opti_fig3A_1_1 = scipy.optimize.minimize(SSR_code_fig3A_1_1, initial_guess_fig3A_1_1, method='Nelder-Mead', bounds=parameter_bounds, options={'maxiter':2000, 'xatol':1e-3, 'fatol':1e-3})
+print(opti_fig3A_1_1)
+
+gamma_fig3A_1_1 = opti_fig3A_1_1.x[1]
+k_val_fig3A_1_1 = opti_fig3A_1_1.x[2]
+sigma_fig3A_1_1 = opti_fig3A_1_1.x[3]
+observed_fig3A_1_1 = true_y_values_fig3A_1_1(opti_fig3A_1_1)
+
+initial_guess_fig3A_1_2 = [0.94725, 141.0677, 12.03868, 4.98449]
+opti_fig3A_1_2 = scipy.optimize.minimize(SSR_code_fig3A_1_2, initial_guess_fig3A_1_2, method='Nelder-Mead', bounds=parameter_bounds, options={'maxiter':2000, 'xatol':1e-3, 'fatol':1e-3})
+print(opti_fig3A_1_2)
+
+gamma_fig3A_1_2 = opti_fig3A_1_2.x[1]
+k_val_fig3A_1_2 = opti_fig3A_1_2.x[2]
+sigma_fig3A_1_2 = opti_fig3A_1_2.x[3]
+observed_fig3A_1_2 = true_y_values_fig3A_1_2(opti_fig3A_1_2)
+
+initial_guess_fig3A_2_1 = [0.88185, 92.68115, 4.18241, 1.69556]
+opti_fig3A_2_1 = scipy.optimize.minimize(SSR_code_fig3A_2_1, initial_guess_fig3A_2_1, method='Nelder-Mead', bounds=parameter_bounds, options={'maxiter':2000, 'xatol':1e-3, 'fatol':1e-3})
+print(opti_fig3A_2_1)
+
+gamma_fig3A_2_1 = opti_fig3A_2_1.x[1]
+k_val_fig3A_2_1 = opti_fig3A_2_1.x[2]
+sigma_fig3A_2_1 = opti_fig3A_2_1.x[3]
+observed_fig3A_2_1 = true_y_values_fig3A_2_1(opti_fig3A_2_1)
+
+print(opti_fig3A_1_1)
+print(opti_fig3A_1_2)
+print(opti_fig3A_2_1)
+
+plt.scatter(final_fig3A_1_1[:,0], final_fig3A_1_1[:,1])
+plt.plot(final_fig3A_1_1[:,0], true_y_values_fig3A_1_1(opti_fig3A_1_1))
+
+plt.scatter(final_fig3A_1_2[:,0], final_fig3A_1_2[:,1])
+plt.plot(final_fig3A_1_2[:,0], true_y_values_fig3A_1_2(opti_fig3A_1_2))
+
+plt.scatter(final_fig3A_2_1[:,0], final_fig3A_2_1[:,1])
+plt.plot(final_fig3A_2_1[:,0], true_y_values_fig3A_2_1(opti_fig3A_2_1))
+
+plt.legend()
+plt.xlabel("Time (hr)")
+plt.ylabel(" CI")
+plt.title("3A")
+plt.show()
+
+print('chi^2', chi_squared(final_fig3A_1_1[:,1][1:], observed_fig3A_1_1[1:]))
+print('aic', aic(final_fig3A_1_1[:,1]))
+
+print('chi^2', chi_squared(final_fig3A_1_2[:,1][1:], observed_fig3A_1_2[1:]))
+print('aic', aic(final_fig3A_1_2[:,1]))
+
+print('chi^2', chi_squared(final_fig3A_2_1[:,1][1:], observed_fig3A_2_1[1:]))
+print('aic', aic(final_fig3A_2_1[:,1]))
