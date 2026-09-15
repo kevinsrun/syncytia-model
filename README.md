@@ -1,37 +1,32 @@
 # Syncytia Model
 
-Python ODE model for fitting digitized syncytia-formation and cell-index curves.
+Python-based ODE model for fitting digitized experimental curves of syncytia formation and cell index dynamics.
 
-The repository contains the fitting script, the original figure CSVs in `Fig.csvs/`,
-and the digitized/combined CSVs in `figure_digitized_csvs/`.
+This repository contains:
+- Digitized CSV data extracted from published figures
+- A mechanistic ODE model with fusion intermediates and cell death
+- Single-curve and multi-curve fitting with shared biological parameters
 
-## Model
+---
 
-`syncytia-model_christmas.py` uses an Erlang two-step fusion model with five
-living compartments:
+## Model Summary
 
-- `D`: donor cells
-- `A`: acceptor cells
-- `F1`: first fusion intermediate
-- `F2`: second fusion intermediate
-- `S`: syncytia
+The model describes syncytia formation using an Erlang two-step fusion process with an explicit death term.
 
-Each curve fits four parameters:
+### State Variables
+- **D** — Donor cells  
+- **A** — Acceptor cells  
+- **F1** — Fusion intermediate (stage 1)  
+- **F2** — Fusion intermediate (stage 2)  
+- **S** — Syncytia  
+- **X** — Dead / lost cells  
 
-- `donor_fraction`: initial donor proportion
-- `gamma`: fusion-initiation rate
-- `k_val`: Erlang transition rate
-- `delta`: death/loss rate applied to every living compartment
+### Key Parameters
+- `gamma` — Fusion initiation rate  
+- `k` — Erlang transition rate  
+- `delta` — Death / loss rate  
+- `rA` — Optional acceptor growth rate  
+- `K` — Carrying capacity  
+- `gamma2` — Secondary fusion rate  
 
-The plotted model signal is `S / (D + A + F1 + F2)`. A fitted line is omitted
-when a dataset contains fewer than two distinct time points.
-
-## Usage
-
-```bash
-python syncytia-model_christmas.py --data "Fig.csvs/*.csv"
-```
-
-Optional flags are `--max_time`, `--no_baseline`, `--no_normalize`, and
-`--invert`. The script groups input curves by figure panel and writes one PNG
-per panel.
+Observed signal is modeled as:
