@@ -14,18 +14,18 @@ import re
 import math
 
 #Differential Equations. Erlang Two-Step Fusion 
-def ode_list(li,t,gamma,k_val):
+def ode_list(li,t,gamma,k_val,death_parameter):
     D = li[0]
     A = li[1]
     F1 = li[2]
     F2 = li[3]
     S = li[4]
 
-    dDdt = (-gamma*D*A)
-    dAdt = (-gamma*D*A) - (gamma*S*A)
-    dF1dt = (2*gamma*D*A)+(gamma*S*A)-(k_val*F1)
-    dF2dt = (k_val*F1)-(k_val*F2)
-    dSdt = (k_val*F2)
+    dDdt = (-gamma*D*A) - (death_parameter*D)
+    dAdt = (-gamma*D*A) - (gamma*S*A) - (death_parameter*A)
+    dF1dt = (2*gamma*D*A)+(gamma*S*A)-(k_val*F1) - (death_parameter*F1)
+    dF2dt = (k_val*F1)-(k_val*F2) - (death_parameter*F2)
+    dSdt = (k_val*F2) - (death_parameter*S)
 
     return [dDdt, dAdt, dF1dt, dF2dt, dSdt]
 
@@ -34,8 +34,9 @@ def true_y_values(li, t_vals):
     donor_y = li.x[0]
     gamma_y = li.x[1]
     k_val_y = li.x[2]
+    death_parameter_y = li.x[3]
 
-    true_vals = odeint(ode_list,[donor_y, 1-donor_y, 0, 0, 0], t_vals, args = (gamma_y, k_val_y), mxstep=5000)
+    true_vals = odeint(ode_list,[donor_y, 1-donor_y, 0, 0, 0], t_vals, args = (gamma_y, k_val_y, death_parameter_y), mxstep=5000)
     y_vals = true_vals[:,4] / (true_vals[:,0] + true_vals[:,1] + true_vals[:,2] + true_vals[:,3])
     return y_vals
 
@@ -102,25 +103,26 @@ def fit_one(final_arr):
         donor_SSR = li[0]
         gamma_SSR = li[1]
         k_val_SSR = li[2]
+        death_parameter_SSR = li[3]
         if donor_SSR <= 0 or donor_SSR >= 1:
             return 1e18
-        if gamma_SSR <= 0 or k_val_SSR <= 0:
+        if gamma_SSR <= 0 or k_val_SSR <= 0 or death_parameter_SSR < 0:
             return 1e18
 
         var = [donor_SSR, 1-donor_SSR, 0, 0, 0]
-        return_values = odeint(ode_list,var, t_vals, args = (gamma_SSR, k_val_SSR), mxstep=5000) 
+        return_values = odeint(ode_list,var, t_vals, args = (gamma_SSR, k_val_SSR, death_parameter_SSR), mxstep=5000)
         y_predicted_val = return_values[:,4]/(return_values[:,0]+return_values[:,1]+return_values[:,2]+return_values[:,3])
         p = np.mean((check - y_predicted_val)**2)
         return p
 
     ##### MAIN CODE #####
-    initial_guess = [0.5, 0.001, 0.02]
+    initial_guess = [0.5, 0.001, 0.02, 0.02]
     opti = scipy.optimize.minimize(SSR_code, initial_guess, method = 'Nelder-Mead', options={'maxiter':5000})
     observed = true_y_values(opti, t_vals)
 
     SSR = float(opti.fun) * len(check)
     n = len(check)
-    m = 3
+    m = 4
     sigma = float(np.sqrt(SSR/max(n-m,1)))
 
     check_chi = check.copy()
@@ -132,29 +134,11 @@ def fit_one(final_arr):
 
     den = max(sigma**2, 1e-12)
     chi2 = float(SSR / den)
-    m = 3
+    m = 4
     AIC = float(aic(check, SSR, m))
 
 
     return opti, observed, SSR, sigma, chi2, AIC
-
-def plot_and_save(final_arr, observed, out_png, title):
-    plt.figure(figsize=(6,4))
-    plt.scatter(final_arr[:,0], final_arr[:,1])
-    plt.plot(final_arr[:,0], observed)
-    plt.xlabel("Time(hr)", fontsize=10)
-    plt.ylabel("Cell Index", fontsize=10)
-    plt.title(title, fontsize=10)
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=200)
-    plt.close()
-
-def write_params(out_csv, opti, SSR, sigma, chi2, AIC):
-    with open(out_csv, 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(["p","gamma","k_val","SSR","sigma","chi^2","AIC"])
-        w.writerow([opti.x[0], opti.x[1], opti.x[2], SSR, sigma, chi2, AIC])
-
 
 def panel_name_from_file(path):
     base = os.path.splitext(os.path.basename(path))[0]
@@ -308,6 +292,7 @@ def main():
 
             print(os.path.basename(path))
             print("fun", opti.fun)
+            print("death_parameter", opti.x[3])
             print("sigma", sigma)
             print("chi^2", chi2)
             print("AIC", AIC)
