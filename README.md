@@ -1,32 +1,37 @@
 # Syncytia Model
 
-Python-based ODE model for fitting digitized experimental curves of syncytia formation and cell index dynamics.
+Python ODE model for fitting digitized syncytia-formation and cell-index curves.
 
-This repository contains:
-- Digitized CSV data extracted from published figures
-- A mechanistic ODE model with fusion intermediates and cell death
-- Single-curve and multi-curve fitting with shared biological parameters
+The repository contains the fitting script, the original figure CSVs in `Fig.csvs/`,
+and the digitized/combined CSVs in `figure_digitized_csvs/`.
 
----
+## Model
 
-## Model Summary
+`syncytia-model_christmas.py` uses an Erlang two-step fusion model with five
+living compartments:
 
-The model describes syncytia formation using an Erlang two-step fusion process with an explicit death term.
+- `D`: donor cells
+- `A`: acceptor cells
+- `F1`: first fusion intermediate
+- `F2`: second fusion intermediate
+- `S`: syncytia
 
-### State Variables
-- **D** — Donor cells  
-- **A** — Acceptor cells  
-- **F1** — Fusion intermediate (stage 1)  
-- **F2** — Fusion intermediate (stage 2)  
-- **S** — Syncytia  
-- **X** — Dead / lost cells  
+Each curve fits four parameters:
 
-### Key Parameters
-- `gamma` — Fusion initiation rate  
-- `k` — Erlang transition rate  
-- `delta` — Death / loss rate  
-- `rA` — Optional acceptor growth rate  
-- `K` — Carrying capacity  
-- `gamma2` — Secondary fusion rate  
+- `donor_fraction`: initial donor proportion
+- `gamma`: fusion-initiation rate
+- `k_val`: Erlang transition rate
+- `delta`: death/loss rate applied to every living compartment
 
-Observed signal is modeled as:
+The plotted model signal is `S / (D + A + F1 + F2)`. A fitted line is omitted
+when a dataset contains fewer than two distinct time points.
+
+## Usage
+
+```bash
+python syncytia-model_christmas.py --data "Fig.csvs/*.csv"
+```
+
+Optional flags are `--max_time`, `--no_baseline`, `--no_normalize`, and
+`--invert`. The script groups input curves by figure panel and writes one PNG
+per panel.
