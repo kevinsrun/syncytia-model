@@ -140,6 +140,17 @@ def fit_one(final_arr):
 
     return opti, observed, SSR, sigma, chi2, AIC
 
+def plot_and_save(final_arr, observed, out_png, title):
+    plt.figure(figsize=(6,4))
+    plt.scatter(final_arr[:,0], final_arr[:,1])
+    plt.plot(final_arr[:,0], observed)
+    plt.xlabel("Time(hr)", fontsize=10)
+    plt.ylabel("Cell Index", fontsize=10)
+    plt.title(title, fontsize=10)
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=200)
+    plt.close()
+
 def panel_name_from_file(path):
     base = os.path.splitext(os.path.basename(path))[0]
 
