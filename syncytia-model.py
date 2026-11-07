@@ -1,17 +1,14 @@
 print("SCRIPT STARTED")
 
-from tabnanny import check
 import numpy as np
 import scipy
 import csv
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize
 from scipy.integrate import odeint
 import argparse
 import os
 import glob
 import re
-import math
 
 #Differential Equations. Erlang Two-Step Fusion 
 def ode_list(li,t,gamma,k_val,death_parameter):
@@ -29,21 +26,20 @@ def ode_list(li,t,gamma,k_val,death_parameter):
 
     return [dDdt, dAdt, dF1dt, dF2dt, dSdt]
 
-#Taking optimize values and getting y values 
-def true_y_values(li, t_vals):
-    donor_y = li.x[0]
-    gamma_y = li.x[1]
-    k_val_y = li.x[2]
-    death_parameter_y = li.x[3]
+#Shared model integration: unpack parameters, integrate the ODE, return the observed signal S/(D+A+F1+F2)
+def simulate_y_values(li, t_vals):
+    donor = li[0]
+    gamma = li[1]
+    k_val = li[2]
+    death_parameter = li[3]
 
-    true_vals = odeint(ode_list,[donor_y, 1-donor_y, 0, 0, 0], t_vals, args = (gamma_y, k_val_y, death_parameter_y), mxstep=5000)
-    y_vals = true_vals[:,4] / (true_vals[:,0] + true_vals[:,1] + true_vals[:,2] + true_vals[:,3])
+    vals = odeint(ode_list,[donor, 1-donor, 0, 0, 0], t_vals, args = (gamma, k_val, death_parameter), mxstep=5000)
+    y_vals = vals[:,4] / (vals[:,0] + vals[:,1] + vals[:,2] + vals[:,3])
     return y_vals
 
-#Chi Squared
-def chi_squared(li_1,li_2):
-    chi = sum((li_1 - li_2)**2/li_1)
-    return chi
+#Taking optimize values and getting y values 
+def true_y_values(li, t_vals):
+    return simulate_y_values(li.x, t_vals)
 
 #Akaike's Information Criterion
 def aic(li, SSR, m):
@@ -109,9 +105,7 @@ def fit_one(final_arr):
         if gamma_SSR <= 0 or k_val_SSR <= 0 or death_parameter_SSR < 0:
             return 1e18
 
-        var = [donor_SSR, 1-donor_SSR, 0, 0, 0]
-        return_values = odeint(ode_list,var, t_vals, args = (gamma_SSR, k_val_SSR, death_parameter_SSR), mxstep=5000)
-        y_predicted_val = return_values[:,4]/(return_values[:,0]+return_values[:,1]+return_values[:,2]+return_values[:,3])
+        y_predicted_val = simulate_y_values(li, t_vals)
         p = np.mean((check - y_predicted_val)**2)
         return p
 
@@ -125,111 +119,12 @@ def fit_one(final_arr):
     m = 4
     sigma = float(np.sqrt(SSR/max(n-m,1)))
 
-    check_chi = check.copy()
-    if n > 3:
-        check_chi[0] = 0.0001
-        check_chi[1] = 0.0001
-        check_chi[2] = 0.0001
-        check_chi[3] = 0.0001
-
     den = max(sigma**2, 1e-12)
     chi2 = float(SSR / den)
-    m = 4
     AIC = float(aic(check, SSR, m))
 
 
     return opti, observed, SSR, sigma, chi2, AIC
-
-def plot_and_save(final_arr, observed, out_png, title):
-    plt.figure(figsize=(6,4))
-    plt.scatter(final_arr[:,0], final_arr[:,1])
-    plt.plot(final_arr[:,0], observed)
-    plt.xlabel("Time(hr)", fontsize=10)
-    plt.ylabel("Cell Index", fontsize=10)
-    plt.title(title, fontsize=10)
-    plt.tight_layout()
-    plt.savefig(out_png, dpi=200)
-    plt.close()
-
-def panel_name_from_file(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-
-    if base.startswith("FigB_"):
-        return None
-
-    if base.startswith("Fig2_mock"):
-        return "Fig 2A"
-    
-    if base.lower().startswith("fig2_mock"):
-        key = "Fig 2A"
-
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if m:
-        key = m.group(1)
-        return f"{key[:3]} {key[3:]}"  # "Fig 4C"
-
-    return None
-
-
-def auto_segment_and_invert(final_arr):
-    t = final_arr[:,0]
-    y = final_arr[:,1]
-
-    if len(y) < 5:
-        return final_arr, False
-
-    # detect U-shape-ish: minimum is not at ends
-    i_min = int(np.argmin(y))
-    u_shape = (2 <= i_min <= len(y)-3)
-
-    if u_shape:
-        # keep the increasing leg after the minimum
-        t2 = t[i_min:]
-        y2 = y[i_min:]
-
-        # rebase like preprocess does: start at 0
-        t2 = t2 - t2[0]
-        y2 = y2 - y2[0]
-        mx = np.max(y2) if len(y2) else 1.0
-        if mx > 0:
-            y2 = y2 / mx
-
-        seg = np.column_stack([t2, y2])
-    else:
-        seg = final_arr.copy()
-
-    # choose invert so segment trends upward overall
-    yseg = seg[:,1]
-    invert = (yseg[-1] < yseg[0])
-    return seg, invert
-
-
-def fig_sort_key(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return (10**9, "Z", base)
-    num = int(m.group(2))
-    letter = m.group(3).upper()
-    rest = (m.group(4) or "").lower()
-    return (num, letter, rest)
-def fig_panel_key(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return base
-    return f"{m.group(1)} {int(m.group(2))}{m.group(3).upper()}"  # e.g. "Fig 3A"
-
-def fig_condition_label(path):
-    base = os.path.splitext(os.path.basename(path))[0]
-    m = re.match(r"^(Fig\d+[A-Za-z])", base)
-    if not m:
-        return base
-    rest = m.group(4) or ""
-    if not rest:
-        return "trace"
-    return rest.replace("_", " ")
-
 
 def main():
     ap = argparse.ArgumentParser()
