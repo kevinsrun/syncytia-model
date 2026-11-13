@@ -1,0 +1,83 @@
+# Managed by Engineering Fleet. Regenerate with: fleet init --ci
+# verification-config-sha256: 5a5fca89182caa5ed1b6267f75f9c255140f71273aefc0cff22d58e4715eceb2
+name: Fleet Verification
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  fleet_compile:
+    name: 'Fleet · Python compile'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python project
+        run: python -m pip install .
+      - name: 'Python compile'
+        run: |
+          'python3' '-m' 'compileall' '-q' 'syncytia_tools' 'tests'
+      - name: Record commit binding
+        if: always()
+        run: |
+          echo "Fleet check: compile" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
+  fleet_test:
+    name: 'Fleet · Python tests'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python project
+        run: python -m pip install .
+      - name: 'Python tests'
+        run: |
+          'python3' '-m' 'unittest' 'discover' '-s' 'tests' '-v'
+      - name: Record commit binding
+        if: always()
+        run: |
+          echo "Fleet check: test" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+
+  fleet_data:
+    name: 'Fleet · Digitized data integrity'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python project
+        run: python -m pip install .
+      - name: 'Digitized data integrity'
+        run: |
+          'python3' '-m' 'syncytia_tools.health' '--check-data' 'figure_digitized_csvs'
+      - name: Record commit binding
+        if: always()
+        run: |
+          echo "Fleet check: data" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Fleet verification result: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "Syncthia",
+    "description": "Python ODE syncytia model and digitized curve data",
+    "languages": [
+      "Python"
+    ],
+    "metadata": {
+      "fleetAcceptance": "v0.3.0"
+    }
+  },
+  "repository": {
+    "provider": "github",
+    "remote": "https://github.com/kevinsrun/syncytia-model.git"
+  },
+  "instructions": {
+    "repository": "AGENTS.md"
+  },
+  "verification": {
+    "stopOnFailure": true,
+    "timeoutMs": 120000,
+    "maxOutputBytes": 100000,
+    "checks": [
+      {
+        "id": "compile",
+        "label": "Python compile",
+        "command": "python3",
+        "args": ["-m", "compileall", "-q", "syncytia_tools", "tests"],
+        "required": true
+      },
+      {
+        "id": "test",
+        "label": "Python tests",
+        "command": "python3",
+        "args": ["-m", "unittest", "discover", "-s", "tests", "-v"],
+        "required": true
+      },
+      {
+        "id": "data",
+        "label": "Digitized data integrity",
+        "command": "python3",
+        "args": ["-m", "syncytia_tools.health", "--check-data", "figure_digitized_csvs"],
+        "required": true
+      }
+    ]
+  },
+  "tools": [
+    {
+      "id": "github",
+      "adapter": "github-cli",
+      "enabled": true,
+      "mode": "read-only",
+      "capabilities": [
+        "repository-discovery",
+        "pr-inspect",
+        "ci-inspect",
+        "diff-retrieval"
+      ]
+    }
+  ],
+  "capabilities": {
+    "codex": [
+      "architecture",
+      "implementation",
+      "final-review",
+      "branch-create",
+      "commit",
+      "pr-create",
+      "pr-inspect",
+      "ci-inspect",
+      "task-write",
+      "task-publish",
+      "task-close",
+      "workflow-write",
+      "process-execute",
+      "process-stop",
+      "live-acceptance-record",
+      "policy-override"
+    ],
+    "copilot": [
+      "trace",
+      "test",
+      "audit",
+      "bounded-implementation"
+    ],
+    "gemini": [
+      "independent-review",
+      "large-context-investigation"
+    ],
+    "sentry": [
+      "runtime-error-evidence"
+    ],
+    "datadog": [
+      "telemetry-evidence"
+    ],
+    "blackfire": [
+      "performance-evidence"
+    ],
+    "camber": [
+      "compute-job"
+    ]
+  },
+  "deployment": {
+    "environments": [],
+    "productionPolicy": "approval-required",
+    "metadata": {}
+  },
+  "risk": {
+    "paths": [
+      {
+        "pattern": ".github/workflows/**",
+        "level": "high",
+        "reason": "CI and release control plane"
+      },
+      {
+        "pattern": "**/migrations/**",
+        "level": "high",
+        "reason": "Persistent data changes"
+      },
+      {
+        "pattern": "**/*secret*",
+        "level": "high",
+        "reason": "Potential credential material"
+      },
+      {
+        "pattern": "**/auth/**",
+        "level": "high",
+        "reason": "Authentication and authorization boundary"
+      },
+      {
+        "pattern": "**/billing/**",
+        "level": "high",
+        "reason": "Financial behavior"
+      },
+      {
+        "pattern": "**/queues/**",
+        "level": "medium",
+        "reason": "Queue delivery semantics"
+      },
+      {
+        "pattern": "**/adapters/**",
+        "level": "medium",
+        "reason": "Provider abstraction boundary"
+      }
+    ],
+    "operations": {
+      "production-deploy": "approval-required",
+      "destructive-migration": "approval-required",
+      "secret-mutation": "approval-required",
+      "branch-delete": "approval-required",
+      "force-push": "approval-required",
+      "production-data-mutation": "approval-required",
+      "credential-change": "approval-required"
+    }
+  },
+  "context": {
+    "include": [
+      "README.md",
+      "AGENTS.md",
+      "package.json",
+      "pyproject.toml",
+      "Cargo.toml",
+      "go.mod",
+      "docs/architecture.md"
+    ],
+    "exclude": [
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      ".git/**",
+      ".fleet/state/**"
+    ],
+    "maxBytes": 100000
+  },
+  "ci": {
+    "setup": []
+  },
+  "integrations": {
+    "checks": [
+      {
+        "id": "python",
+        "label": "Python runtime",
+        "type": "executable",
+        "command": "python3",
+        "required": true
+      },
+      {
+        "id": "model-fixture",
+        "label": "Digitized model fixture",
+        "type": "file",
+        "path": "figure_digitized_csvs/Fig2_all_params.csv",
+        "required": true
+      },
+      {
+        "id": "health-endpoint",
+        "label": "Acceptance health endpoint",
+        "type": "http",
+        "url": "http://127.0.0.1:8765/health",
+        "expectedStatus": 200,
+        "required": true,
+        "timeoutMs": 1000
+      }
+    ]
+  },
+  "processes": [
+    {
+      "id": "health",
+      "label": "Syncytia repository health service",
+      "command": "python3",
+      "args": ["-m", "syncytia_tools.health", "--host", "127.0.0.1", "--port", "8765"],
+      "port": 8765,
+      "healthCheck": {
+        "id": "health-endpoint",
+        "label": "Acceptance health endpoint",
+        "type": "http",
+        "url": "http://127.0.0.1:8765/health",
+        "expectedStatus": 200,
+        "required": true,
+        "timeoutMs": 1000
+      },
+      "maxLogBytes": 16384
+    }
+  ],
+  "telemetry": {
+    "estimatedBytesPerToken": 4
+  }
+}
